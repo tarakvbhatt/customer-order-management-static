@@ -1,0 +1,48 @@
+name: Deploy to Azure App Service
+
+# Prereqs (set these up once, see AZURE_DEPLOY.md):
+#   1. An Azure App Service (Linux, Node 20) already created.
+#   2. Repo secrets:
+#      - AZURE_WEBAPP_PUBLISH_PROFILE  (download from the App Service > "Get publish profile")
+#      - VITE_SUPABASE_URL
+#      - VITE_SUPABASE_ANON_KEY
+#   3. Update AZURE_WEBAPP_NAME below to match your App Service name.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  AZURE_WEBAPP_NAME: mupo-maharashtra-app # <- change to your App Service name
+  NODE_VERSION: "20.x"
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        # Vite bakes these into the JS bundle at build time, so they must
+        # be present here — setting them only as Azure App Settings is not enough.
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: npm run build
+
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: .
